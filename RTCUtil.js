@@ -23,3 +23,35 @@ export function mergeMediaConstraints(custom, def) {
   }
   return constraints;
 }
+
+/**
+* Returns a Promise and legacy callbacks compatible function
+* @param {Function} method - The function to make Promise and legacy callbacks compatible
+* @param {Boolean} [callbackFirst] - Indicate whether or not the success and failure callbacks are the firsts arguments
+* @returns {Function}
+*/
+function promisify(method, callbackFirst) {
+  return function (...origArgs) {
+    const successPos = (callbackFirst ? 0 : origArgs.length - 2);
+    const failurePos = (callbackFirst ? 1 : origArgs.length - 1);
+    const success = origArgs[successPos];
+    const failure = origArgs[failurePos];
+    const hasSuccessFunc = (typeof success === 'function');
+    const hasFailureFunc = (typeof failure === 'function');
+    const args = (hasSuccessFunc && hasFailureFunc
+        ? origArgs.filter(item => item !== success && item !== failure)
+        : origArgs);
+
+    return new Promise(function (resolve, reject) {
+      const newArgs = (callbackFirst ? [resolve, reject, ...args] : [...args, resolve, reject]);
+
+      // --- always pass resolve/reject as callback
+      method(...newArgs);
+    }).then((...res) => {
+        if (hasSuccessFunc) success(...res);
+      }, (...res) => {
+        if (hasFailureFunc) failure(...res);
+      }
+    );
+  };
+}
